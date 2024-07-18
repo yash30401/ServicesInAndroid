@@ -47,16 +47,13 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center
                     ) {
                         Button(onClick = {
-                            Intent(TimerService.Actions.START.toString()).also {
-                                it.action = TimerService.Actions.START.toString()
-                                startService(it)
-                            }
+                            TimerService.startService(applicationContext, 25 * 60 * 1000)
 
                         }) {
                             Text(text = "Start Timer")
                         }
                         Button(onClick = {
-                            Intent(applicationContext,TimerService::class.java).also {
+                            Intent(applicationContext, TimerService::class.java).also {
                                 it.action = TimerService.Actions.FINISH.toString()
                                 startService(it)
                             }
