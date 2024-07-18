@@ -1,6 +1,8 @@
 package com.yash.servicesinandroid
 
 import android.annotation.SuppressLint
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -33,6 +35,7 @@ class TimerService : Service() {
                 timeLeft = intent.getLongExtra("TIME_LEFT", 1500000L)
                 startTimer(timeLeft)
             }
+
             Actions.FINISH.toString() -> {
                 stopTimer()
                 resetTimer()
@@ -74,9 +77,30 @@ class TimerService : Service() {
             }
 
             override fun onFinish() {
+                showCompletionNotification()
                 stopSelf()
             }
         }.start()
+    }
+
+    private fun showCompletionNotification() {
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent =
+            PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(this, "101k")
+            .setContentTitle("Timer")
+            .setContentText("Your session completed!")
+            .setSmallIcon(R.drawable.baseline_timer_24)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .build()
+
+        notificationManager.notify(2, notification)
     }
 
     private fun stopTimer() {
@@ -120,6 +144,18 @@ class TimerService : Service() {
             dataStoreManager.saveTimeLeft(timeLeft)
         }
         super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // Restart service if it's killed
+        startService(Intent(applicationContext, TimerService::class.java))
+    }
+
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        stopSelf()
     }
 
     companion object {

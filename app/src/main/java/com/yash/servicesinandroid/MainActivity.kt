@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity() {
                         )
 
                         Button(onClick = {
-                            TimerService.startService(applicationContext, 25 * 60 * 1000)
+                            TimerService.startService(applicationContext, 1 * 60 * 1000)
                         }) {
                             Text(text = "Start Timer")
                         }
