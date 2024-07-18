@@ -83,4 +83,5 @@ dependencies {
 
     // Other dependencies
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.4.0-alpha01")
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }

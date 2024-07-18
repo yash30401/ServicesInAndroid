@@ -7,11 +7,21 @@ import android.content.Intent
 import android.os.CountDownTimer
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class TimerService : Service() {
 
     private var countDownTimer: CountDownTimer? = null
     private var timeLeft: Long = 0
+    private lateinit var dataStoreManager: DataStoreManager
+    private val scope = CoroutineScope(Dispatchers.IO)
+
+    override fun onCreate() {
+        super.onCreate()
+        dataStoreManager = DataStoreManager(this)
+    }
 
     override fun onBind(p0: Intent?): IBinder? {
         return null
@@ -23,7 +33,10 @@ class TimerService : Service() {
                 timeLeft = intent.getLongExtra("TIME_LEFT", 1500000L)
                 startTimer(timeLeft)
             }
-            Actions.FINISH.toString() -> stopSelf()
+            Actions.FINISH.toString() -> {
+                stopTimer()
+                resetTimer()
+            }
         }
         return START_STICKY
     }
@@ -35,7 +48,7 @@ class TimerService : Service() {
             .setContentText("Time remaining: 25:00")
             .setSmallIcon(R.drawable.baseline_timer_24)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
         startForeground(1, notification)
@@ -66,6 +79,35 @@ class TimerService : Service() {
         }.start()
     }
 
+    private fun stopTimer() {
+        countDownTimer?.cancel()
+        countDownTimer = null
+    }
+
+    private fun resetTimer() {
+        timeLeft = 1500000L // 25 minutes
+        scope.launch {
+            dataStoreManager.saveTimeLeft(timeLeft)
+        }
+
+        val notification = NotificationCompat.Builder(this, "101")
+            .setContentTitle("Timer")
+            .setContentText("Time remaining: 25:00")
+            .setSmallIcon(R.drawable.baseline_timer_24)
+            .setOngoing(false)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        startForeground(1, notification)
+
+        val broadcastIntent = Intent("TIMER_UPDATE")
+        broadcastIntent.putExtra("TIME_LEFT", timeLeft)
+        sendBroadcast(broadcastIntent)
+
+        stopForeground(true)
+        stopSelf()
+    }
+
     private fun formatTime(millis: Long): String {
         val minutes = (millis / 1000) / 60
         val seconds = (millis / 1000) % 60
@@ -73,11 +115,10 @@ class TimerService : Service() {
     }
 
     override fun onDestroy() {
-        countDownTimer?.cancel()
-        getSharedPreferences("TIMER_PREFS", Context.MODE_PRIVATE)
-            .edit()
-            .putLong("TIME_LEFT", timeLeft)
-            .apply()
+        stopTimer()
+        scope.launch {
+            dataStoreManager.saveTimeLeft(timeLeft)
+        }
         super.onDestroy()
     }
 
