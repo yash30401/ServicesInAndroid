@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 class TimerService : Service() {
 
     private var countDownTimer: CountDownTimer? = null
+    private var timeLeft: Long = 0
 
     override fun onBind(p0: Intent?): IBinder? {
         return null
@@ -19,16 +20,16 @@ class TimerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             Actions.START.toString() -> {
-                val timeLeft = intent.getIntExtra("TIME_LEFT",1500000)
+                timeLeft = intent.getLongExtra("TIME_LEFT", 1500000L)
                 startTimer(timeLeft)
             }
             Actions.FINISH.toString() -> stopSelf()
         }
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     @SuppressLint("ForegroundServiceType")
-    private fun startTimer(timeLeft: Int) {
+    private fun startTimer(timeLeft: Long) {
         val notification = NotificationCompat.Builder(this, "101")
             .setContentTitle("Timer")
             .setContentText("Time remaining: 25:00")
@@ -39,8 +40,10 @@ class TimerService : Service() {
 
         startForeground(1, notification)
 
-        countDownTimer = object : CountDownTimer(timeLeft.toLong(), 1000) {
+        countDownTimer = object : CountDownTimer(timeLeft, 1000) {
             override fun onTick(millisUntilFinished: Long) {
+                this@TimerService.timeLeft = millisUntilFinished
+
                 val updatedNotification = NotificationCompat.Builder(this@TimerService, "101")
                     .setContentTitle("Timer")
                     .setContentText("Time remaining: ${formatTime(millisUntilFinished)}")
@@ -51,12 +54,15 @@ class TimerService : Service() {
                     .build()
 
                 startForeground(1, updatedNotification)
+
+                val broadcastIntent = Intent("TIMER_UPDATE")
+                broadcastIntent.putExtra("TIME_LEFT", millisUntilFinished)
+                sendBroadcast(broadcastIntent)
             }
 
             override fun onFinish() {
                 stopSelf()
             }
-
         }.start()
     }
 
@@ -68,14 +74,18 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         countDownTimer?.cancel()
+        getSharedPreferences("TIMER_PREFS", Context.MODE_PRIVATE)
+            .edit()
+            .putLong("TIME_LEFT", timeLeft)
+            .apply()
         super.onDestroy()
     }
 
     companion object {
-        fun startService(context: Context, timeLeft: Int) {
+        fun startService(context: Context, timeLeft: Long) {
             val startIntent = Intent(context, TimerService::class.java).apply {
                 action = Actions.START.toString()
-                putExtra("time_left", timeLeft)
+                putExtra("TIME_LEFT", timeLeft)
             }
             context.startService(startIntent)
         }
