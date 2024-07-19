@@ -55,7 +55,7 @@ class TimerService : Service() {
     private fun startTimer(timeLeft: Long) {
         val notification = NotificationCompat.Builder(this, "101")
             .setContentTitle("Timer")
-            .setContentText("Time remaining: 25:00")
+            .setContentText("Time remaining: $timeLeft")
             .setSmallIcon(R.drawable.baseline_timer_24)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

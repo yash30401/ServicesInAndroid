@@ -86,9 +86,6 @@ class MainActivity : ComponentActivity() {
                         mutableStateOf(extraTime)
                     }
 
-                    LaunchedEffect(Unit) {
-                        timeLeftState = timeLeft
-                    }
 
                     LaunchedEffect(timeLeft) {
                         timeLeftState = timeLeft
