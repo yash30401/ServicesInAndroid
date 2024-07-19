@@ -27,17 +27,21 @@ import androidx.lifecycle.lifecycleScope
 import com.yash.servicesinandroid.ui.theme.ServicesInAndroidTheme
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
     private var timeLeft: Long by mutableStateOf(1500000L) // Default to 25:00
     private lateinit var dataStoreManager: DataStoreManager
+    private var extraTime: Int by mutableStateOf(0)
 
     private val timerUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             timeLeft = intent?.getLongExtra("TIME_LEFT", 1500000L) ?: 1500000L
+            extraTime = intent?.getIntExtra("EXTRA_TIME", 0) ?: 0
             lifecycleScope.launch {
                 dataStoreManager.saveTimeLeft(timeLeft)
+                dataStoreManager.saveExtraTime(extraTime)
             }
         }
     }
@@ -57,12 +61,20 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        registerReceiver(timerUpdateReceiver, IntentFilter("TIMER_UPDATE"),
-            RECEIVER_EXPORTED)
+        registerReceiver(
+            timerUpdateReceiver, IntentFilter("TIMER_UPDATE"),
+            RECEIVER_EXPORTED
+        )
 
         lifecycleScope.launch {
             dataStoreManager.timeLeftFlow.collect { savedTimeLeft ->
                 timeLeft = savedTimeLeft
+            }
+
+        }
+        lifecycleScope.launch {
+            dataStoreManager.extraTime.collect { getExtraTime ->
+                extraTime = getExtraTime
             }
         }
 
@@ -70,6 +82,9 @@ class MainActivity : ComponentActivity() {
             ServicesInAndroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) {
                     var timeLeftState by remember { mutableStateOf(timeLeft) }
+                    var extraTimeState by remember {
+                        mutableStateOf(extraTime)
+                    }
 
                     LaunchedEffect(Unit) {
                         timeLeftState = timeLeft
@@ -77,6 +92,10 @@ class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(timeLeft) {
                         timeLeftState = timeLeft
+                    }
+
+                    LaunchedEffect(extraTime) {
+                        extraTimeState = extraTime
                     }
 
                     Column(
@@ -91,6 +110,16 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(bottom = 20.dp)
                         )
 
+                        if (extraTimeState > 0) {
+                            val extraMinutes = (extraTimeState / 60)
+                            val extraSeconds = (extraTimeState % 60)
+                            Text(
+                                text = String.format("%02d:%02d", extraMinutes, extraSeconds),
+                                modifier = Modifier.padding(top = 20.dp)
+                            )
+                        }
+
+
                         Button(onClick = {
                             TimerService.startService(applicationContext, 1 * 60 * 1000)
                         }) {
@@ -100,6 +129,7 @@ class MainActivity : ComponentActivity() {
                             TimerService.stopService(applicationContext)
                             // Reset timer display to 25:00 (1500000 milliseconds)
                             timeLeftState = 1500000L
+                            extraTimeState = 0
                         }) {
                             Text(text = "Stop Timer")
                         }

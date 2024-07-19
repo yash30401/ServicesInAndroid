@@ -1,28 +1,35 @@
 package com.yash.servicesinandroid
 
 import android.annotation.SuppressLint
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.CountDownTimer
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class TimerService : Service() {
 
     private var countDownTimer: CountDownTimer? = null
     private var timeLeft: Long = 0
+    private var extraTime: Int = 0
     private lateinit var dataStoreManager: DataStoreManager
     private val scope = CoroutineScope(Dispatchers.IO)
+    private var extraTimeJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
         dataStoreManager = DataStoreManager(this)
+        createNotificationChannels()
     }
 
     override fun onBind(p0: Intent?): IBinder? {
@@ -78,7 +85,7 @@ class TimerService : Service() {
 
             override fun onFinish() {
                 showCompletionNotification()
-                stopSelf()
+                startExtraTimerInTheBackground()
             }
         }.start()
     }
@@ -91,7 +98,7 @@ class TimerService : Service() {
         val pendingIntent =
             PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
-        val notification = NotificationCompat.Builder(this, "101k")
+        val notification = NotificationCompat.Builder(this, "102")
             .setContentTitle("Timer")
             .setContentText("Your session completed!")
             .setSmallIcon(R.drawable.baseline_timer_24)
@@ -103,15 +110,31 @@ class TimerService : Service() {
         notificationManager.notify(2, notification)
     }
 
+    private fun startExtraTimerInTheBackground() {
+        extraTimeJob = scope.launch {
+            while (true) {
+                delay(1000)
+                extraTime++
+                val broadcastIntent = Intent("TIMER_UPDATE")
+                broadcastIntent.putExtra("EXTRA_TIME", extraTime)
+                sendBroadcast(broadcastIntent)
+            }
+        }
+    }
+
     private fun stopTimer() {
         countDownTimer?.cancel()
         countDownTimer = null
+        extraTimeJob?.cancel()
+        extraTimeJob = null
     }
 
     private fun resetTimer() {
         timeLeft = 1500000L // 25 minutes
+        extraTime = 0
         scope.launch {
             dataStoreManager.saveTimeLeft(timeLeft)
+            dataStoreManager.saveExtraTime(extraTime)
         }
 
         val notification = NotificationCompat.Builder(this, "101")
@@ -126,6 +149,7 @@ class TimerService : Service() {
 
         val broadcastIntent = Intent("TIMER_UPDATE")
         broadcastIntent.putExtra("TIME_LEFT", timeLeft)
+        broadcastIntent.putExtra("EXTRA_TIME", extraTime)
         sendBroadcast(broadcastIntent)
 
         stopForeground(true)
@@ -138,18 +162,31 @@ class TimerService : Service() {
         return String.format("%02d:%02d", minutes, seconds)
     }
 
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel1 = NotificationChannel(
+                "101",
+                "Timer Running",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            val channel2 = NotificationChannel(
+                "102",
+                "Timer Completed",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            val notificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannels(listOf(channel1, channel2))
+        }
+    }
+
     override fun onDestroy() {
         stopTimer()
         scope.launch {
             dataStoreManager.saveTimeLeft(timeLeft)
+            dataStoreManager.saveExtraTime(extraTime)
         }
         super.onDestroy()
-    }
-
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-        // Restart service if it's killed
-        startService(Intent(applicationContext, TimerService::class.java))
     }
 
 
