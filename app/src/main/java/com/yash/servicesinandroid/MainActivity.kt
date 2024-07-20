@@ -8,8 +8,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
     private var timeLeft: Long by mutableStateOf(1500000L) // Default to 25:00
     private lateinit var dataStoreManager: DataStoreManager
     private var extraTime: Int by mutableStateOf(0)
+    private val timerViewModel: TimerViewModel by viewModels()
 
     private val timerUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -42,6 +45,8 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 dataStoreManager.saveTimeLeft(timeLeft)
                 dataStoreManager.saveExtraTime(extraTime)
+                timerViewModel.updateTimeLeft(timeLeft)
+                timerViewModel.updateExtraTime(extraTime)
             }
         }
     }
@@ -81,58 +86,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             ServicesInAndroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) {
-                    var timeLeftState by remember { mutableStateOf(timeLeft) }
-                    var extraTimeState by remember {
-                        mutableStateOf(extraTime)
-                    }
 
-
-                    LaunchedEffect(timeLeft) {
-                        timeLeftState = timeLeft
-                    }
-
-                    LaunchedEffect(extraTime) {
-                        extraTimeState = extraTime
-                    }
-
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        val minutes = (timeLeftState / 1000) / 60
-                        val seconds = (timeLeftState / 1000) % 60
-                        Text(
-                            text = String.format("%02d:%02d", minutes, seconds),
-                            modifier = Modifier.padding(bottom = 20.dp)
-                        )
-
-                        if (extraTimeState > 0) {
-                            val extraMinutes = (extraTimeState / 60)
-                            val extraSeconds = (extraTimeState % 60)
-                            Text(
-                                text = String.format("%02d:%02d", extraMinutes, extraSeconds),
-                                modifier = Modifier.padding(top = 20.dp)
-                            )
-                        }
-
-
-                        Button(onClick = {
-                            TimerService.startService(applicationContext, 1 * 60 * 1000)
-                        }) {
-                            Text(text = "Start Timer")
-                        }
-                        Button(onClick = {
-                            TimerService.stopService(applicationContext)
-                            // Reset timer display to 25:00 (1500000 milliseconds)
-                            timeLeftState = 1500000L
-                            extraTimeState = 0
-                        }) {
-                            Text(text = "Stop Timer")
-                        }
-                    }
+                    TimerScreen(this@MainActivity,viewModel = timerViewModel)
                 }
             }
+
         }
     }
 
